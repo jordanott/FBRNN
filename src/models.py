@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from attention import SelfAttention
+from src.attention import SelfAttention
 
 class FBRNN(nn.Module):
 
