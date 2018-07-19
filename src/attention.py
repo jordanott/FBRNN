@@ -7,11 +7,11 @@ class SelfAttention(nn.Module):
     def __init__(self, input_vector_size = 16, hidden_size = 16, input_context_size = None):
         super(SelfAttention, self).__init__()
         if input_context_size is not None:
-            self.W_a = torch.randn(input_context_size, hidden_size, requires_grad=True)
+            self.W_a = nn.Parameter(torch.randn(input_context_size, hidden_size, requires_grad=True))
         else:
             self.W_a = None
-        self.U_a = torch.randn(input_vector_size, hidden_size, requires_grad=True)
-        self.v_a = torch.randn(1, hidden_size, requires_grad=True)
+        self.U_a = nn.Parameter(torch.randn(input_vector_size, hidden_size, requires_grad=True))
+        self.v_a = nn.Parameter(torch.randn(1, hidden_size, requires_grad=True))
 
     def forward(self, vectors, predicate = None):
         if self.W_a is None or predicate is None:
