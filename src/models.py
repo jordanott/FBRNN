@@ -17,7 +17,6 @@ class RNN(nn.Module):
         self.cells = nn.ModuleList([nn.GRUCell(input_size=self.feature_size, hidden_size=hidden_size)] +
                                    [nn.GRUCell(input_size=hidden_size, hidden_size=hidden_size) for i in range(num_layers-1)])
 
-        self.h_s = [torch.randn((batch_size, self.hidden_size)) for i in range(self.num_layers)]
 
         self.dropout1 = nn.Dropout(.3)
         self.fc1 = nn.Linear(hidden_size,32)
@@ -26,23 +25,20 @@ class RNN(nn.Module):
         self.dropout2 = nn.Dropout(.3)
         self.fc2 = nn.Linear(32,1)
 
-    def reset_hidden_states(self):
-        self.h_s = [torch.randn((self.batch_size, self.hidden_size)) for i in range(self.num_layers)]
-
     def forward(self, batch):
         # (sequence, batch, feature)
         #embedded_input = self.embedding(batch)
-
+        h_s = [torch.zeros((self.batch_size, self.hidden_size)) for i in range(self.num_layers)]
         out_vecs = []
         for token in batch.split(1):
             input_vec = token.squeeze().view(1,self.feature_size)
             # get all outputs (go up)
             new_h_s = []
-            for h, cell in zip(self.h_s, self.cells):
+            for h, cell in zip(h_s, self.cells):
                 input_vec = cell(input_vec, h)
                 new_h_s.append(input_vec)
 
-            self.h_s = new_h_s
+            h_s = new_h_s
 
             do1 = self.dropout1(new_h_s[-1].squeeze())
             fc1 = self.fc1(do1)
@@ -51,7 +47,7 @@ class RNN(nn.Module):
             do2 = self.dropout2(fc1)
             fc2 = self.fc2(do2)
 
-            out_vecs.append(fc2.data)
+            out_vecs.append(fc2)
         return out_vecs
 
 class FBRNN(nn.Module):
@@ -73,28 +69,25 @@ class FBRNN(nn.Module):
                                    [nn.GRUCell(input_size=hidden_size, hidden_size=hidden_size) for i in range(num_layers-1)])
         self.hidden_attentions = nn.ModuleList([SelfAttention(input_vector_size=hidden_size, hidden_size=attention_hidden_size) for i in range(num_layers)])
 
-        self.h_s = [torch.randn((batch_size, self.hidden_size)) for i in range(self.num_layers)]
-
         self.dropout1 = nn.Dropout(.3)
         self.fc1 = nn.Linear(16,32)
+        self.relu1 = nn.ReLU()
 
         self.dropout2 = nn.Dropout(.3)
         self.fc2 = nn.Linear(32,1)
 
-    def reset_hidden_states(self):
-        self.h_s = [torch.randn((self.batch_size, self.hidden_size)) for i in range(self.num_layers)]
-
     def forward(self, batch):
         #embedded_input = self.embedding(batch)
         batch_size = batch.shape[1]
-
+        
+        h_s = [torch.zeros((self.batch_size, self.hidden_size)) for i in range(self.num_layers)]
 
         out_vecs = []
         for token in batch.split(1):
             input_vec = token.squeeze().view(1,self.feature_size)
             # get all outputs (go up)
             new_h_s = []
-            for h, cell in zip(self.h_s, self.cells):
+            for h, cell in zip(h_s, self.cells):
                 input_vec = cell(input_vec, h)
                 new_h_s.append(input_vec)
 
@@ -103,15 +96,14 @@ class FBRNN(nn.Module):
             for i, att in enumerate(self.hidden_attentions):
                 h_s.append(att.combine(torch.stack(new_h_s[i:])))
 
-            self.h_s = h_s
-
             do1 = self.dropout1(h_s[-1].squeeze())
             fc1 = self.fc1(do1)
+            fc1 = self.relu1(fc1)
 
             do2 = self.dropout2(fc1)
             fc2 = self.fc2(do2)
 
-            out_vecs.append(fc2.data)
+            out_vecs.append(fc2)
         return out_vecs
 
 '''
