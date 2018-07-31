@@ -120,11 +120,12 @@ class FBRNN_encoder(nn.Module):
                                    [nn.GRUCell(input_size=hidden_size, hidden_size=hidden_size) for i in range(num_layers-1)])
         self.hidden_attentions = nn.ModuleList([SelfAttention(input_vector_size=hidden_size, hidden_size=attention_hidden_size) for i in range(num_layers)])
 
-    def init_hidden(self):
-        self.h_s = [torch.zeros((1,self.hidden_size)) for i in range(self.num_layers)]
+    def init_hidden(self,device):
+        self.h_s = [torch.zeros((1,self.hidden_size),device=device) for i in range(self.num_layers)]
 
     def forward(self, batch):
         embedded_input = self.embedding(batch)
+        print('Encoding',batch.shape)
         batch_size = batch.shape[1]
 
         out_vecs = []
@@ -142,7 +143,7 @@ class FBRNN_encoder(nn.Module):
                 self.h_s.append(att.combine(torch.stack(new_h_s[i:])))
 
             out_vecs.append(self.h_s[-1].squeeze())
-        return out_vecs
+        return torch.stack(out_vecs)
 
 
 class FBRNN_decoder(nn.Module):
@@ -167,23 +168,18 @@ class FBRNN_decoder(nn.Module):
         self.dropout2 = nn.Dropout(.3)
         self.fc2 = nn.Linear(32,vocab_size)
 
-    def init_hidden(self):
-        self.h_s = [torch.zeros((1,self.hidden_size),dtype=torch.float64) for i in range(self.num_layers)]
+    def init_hidden(self,device):
+        self.h_s = [torch.zeros((1,self.hidden_size),dtype=torch.float64,device=device) for i in range(self.num_layers)]
 
     def forward(self, decoder_input, encoder_outputs):
         # decoder_input: correct token
-        embedded_decoder_input = self.embedding(decoder_input.type(torch.float64))
-
-        print(embedded_decoder_input.shape)
-        print(encoder_outputs.shape)
-
+        embedded_decoder_input = self.embedding(decoder_input)
+        encoder_outputs = encoder_outputs.unsqueeze(1)
         out_vecs = []
         for token in embedded_decoder_input.split(1):
-            print('Decoder input:',decoder_input.shape,decoder_input.type())
-            print('Hidden shape:',self.h_s[0].shape,self.h_s[0].type())
+            attn = self.attn.combine(encoder_outputs,self.h_s[0])
+            input_vec = torch.cat([attn.unsqueeze(0),token]).view(-1,2*self.hidden_size)
 
-            attn = self.attn.combine(encoder_outputs.type(torch.float64),self.h_s[0].type(torch.float64))
-            input_vec = torch.cat([attn,token])
             # get all outputs (go up)
             new_h_s = []
             for h, cell in zip(self.h_s, self.cells):
@@ -204,4 +200,4 @@ class FBRNN_decoder(nn.Module):
             out = F.softmax(fc2,0)
 
             out_vecs.append(out)
-        return out_vecs
+        return torch.stack(out_vecs)
