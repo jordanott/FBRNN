@@ -125,7 +125,6 @@ class FBRNN_encoder(nn.Module):
 
     def forward(self, batch):
         embedded_input = self.embedding(batch)
-        print('Encoding',batch.shape)
         batch_size = batch.shape[1]
 
         out_vecs = []
